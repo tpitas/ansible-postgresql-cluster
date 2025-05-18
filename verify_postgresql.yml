@@ -1,0 +1,26 @@
+---
+- name: Verify PostgreSQL Installation and Status
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+
+    - name: Check if 'psql' command is available
+      ansible.builtin.command: psql --version
+      register: psql_version
+      changed_when: false
+      failed_when: psql_version.rc != 0
+
+    - name: Display PostgreSQL version
+      ansible.builtin.debug:
+        msg: "PostgreSQL version on {{ inventory_hostname }}: {{ psql_version.stdout }}"
+
+    - name: Check PostgreSQL service status
+      ansible.builtin.shell: systemctl is-active postgresql
+      register: psql_service_status
+      changed_when: false
+      failed_when: psql_service_status.stdout != "active"
+
+    - name: Confirm PostgreSQL service is active
+      ansible.builtin.debug:
+        msg: "PostgreSQL service is active on {{ inventory_hostname }}"
