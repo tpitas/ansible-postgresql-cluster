@@ -1,0 +1,17 @@
+---
+# testing_connectivity.yml
+- name: Test connectivity
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Print message before pinging
+      ansible.builtin.debug:
+        msg: "Pinging host {{ inventory_hostname }}..."
+
+    - name: Ping the hosts
+      ansible.builtin.ping:
+
+    - name: Confirm host is reachable
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} is reachable."
