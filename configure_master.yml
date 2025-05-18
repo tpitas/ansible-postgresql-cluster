@@ -1,0 +1,81 @@
+---
+- name: Configure PostgreSQL Master
+  hosts: postgresql_master
+  become: true
+  gather_facts: false
+
+  vars:
+    pg_conf: /var/lib/pgsql/data/postgresql.conf
+    hba_conf: /var/lib/pgsql/data/pg_hba.conf
+    service_name: postgresql
+
+  tasks:
+    - name: Ensure PostgreSQL is installed
+      ansible.builtin.package:
+        name: postgresql-server
+        state: present
+      notify: Start PostgreSQL service
+
+    - name: Ensure PostgreSQL is started and enabled
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
+
+    - name: Set PostgreSQL to listen on all IPs
+      ansible.builtin.lineinfile:
+        path: "{{ pg_conf }}"
+        regexp: '^#?listen_addresses'
+        line: "listen_addresses = '*'"
+        owner: postgres
+        group: postgres
+        mode: '0644'
+
+    - name: Allow replication in pg_hba.conf
+      ansible.builtin.lineinfile:
+        path: "{{ hba_conf }}"
+        insertafter: EOF
+        line: "host replication replicator 0.0.0.0/0 md5"
+        owner: postgres
+        group: postgres
+        mode: '0644'
+
+    - name: Allow local peer auth for postgres user
+      ansible.builtin.lineinfile:
+        path: "{{ hba_conf }}"
+        regexp: '^local\s+all\s+postgres\s+'
+        line: "local   all     postgres   peer"
+        owner: postgres
+        group: postgres
+        mode: '0644'
+
+    - name: Set WAL level and replication settings
+      ansible.builtin.blockinfile:
+        path: "{{ pg_conf }}"
+        block: |
+          wal_level = replica
+          max_wal_senders = 10
+          archive_mode = on
+          archive_command = '/bin/true'
+
+    - name: Restart PostgreSQL to apply all changes
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: restarted
+        enabled: true
+
+    - name: Create replication user
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: replicator
+        password: rep_pass
+        role_attr_flags: REPLICATION,LOGIN
+        state: present
+        db: postgres
+
+  handlers:
+    - name: Start PostgreSQL service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
