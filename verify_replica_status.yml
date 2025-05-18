@@ -1,0 +1,19 @@
+---
+- name: Verify PostgreSQL replica status
+  hosts: postgresql_slaves
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Check if replica is in recovery mode
+      become_user: postgres
+      ansible.builtin.command: >
+        psql -t -c "SELECT pg_is_in_recovery();"
+      register: recovery_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show recovery mode status
+      ansible.builtin.debug:
+        msg: |
+          Replica {{ inventory_hostname }} recovery mode: {{ recovery_status.stdout | trim }}
