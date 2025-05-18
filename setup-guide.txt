@@ -1,0 +1,101 @@
+Step-by-step Ansible deployment guide for automating a PostgreSQL cluster with replication on Rocky Linux, including commands and configurations. This assumes:
+
+Assumptions:
+- Control Node: Ansible master
+- 4 Managed Nodes: 
+  - mhost1: PostgreSQL master  
+  - mhost2, mhost3, mhost4: PostgreSQL replicas
+- User: devops (used for SSH and sudo)
+- OS: Rocky Linux 9.5 on all nodes
+
+1. Set hostnames and update /etc/hosts (all nodes):
+
+sudo hostnamectl set-hostname control.example.com  # On control node
+sudo hostnamectl set-hostname mhost1.example.com   # On mhost1
+sudo hostnamectl set-hostname mhost2.example.com   # On mhost2
+sudo hostnamectl set-hostname mhost3.example.com   # On mhost3
+sudo hostnamectl set-hostname mhost4.example.com   # On mhost4
+
+Add host entries to /etc/hosts
+sudo vim /etc/hosts
+
+192.168.174.146  control.example.com
+192.168.174.147  mhost1.example.com
+192.168.174.148  mhost2.example.com
+192.168.174.149  mhost3.example.com
+192.168.174.150  mhost4.example.com
+
+2. Create devops user on managed nodes (mhost1–mhost4):
+
+sudo useradd -m devops
+echo devops:devops | sudo chpasswd
+sudo usermod -aG wheel devops
+echo "devops ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/devops
+sudo chmod 0440 /etc/sudoers.d/devops
+
+3. Enable and Start SSH (all nodes)
+
+sudo systemctl enable sshd
+sudo systemctl start sshd
+sudo firewall-cmd --add-service=ssh --permanent
+sudo firewall-cmd --reload
+
+4. SSH Key Setup (on control node)
+Generate SSH key:
+
+ssh-keygen  
+
+Copy key to managed nodes
+
+for host in mhost1 mhost2 mhost3 mhost4; do
+  ssh-copy-id devops@$host
+done
+
+Test: ssh devops@mhost1
+
+5. Install Ansible (control node only)
+
+sudo dnf install epel-release -y
+sudo dnf install ansible -y
+ansible --version
+
+6. Set up Ansible directory structure (control node)
+
+mkdir -p /home/devops/myansible2025
+cd /home/devops/myansible2025
+
+Inventory file:
+
+vim inventory
+
+[postgresql_master]
+mhost1 ansible_host=192.168.174.147 ansible_user=devops
+
+[postgresql_slaves]
+mhost2 ansible_host=192.168.174.148 ansible_user=devops
+mhost3 ansible_host=192.168.174.149 ansible_user=devops
+mhost4 ansible_host=192.168.174.150 ansible_user=devops
+
+[postgresql_cluster:children]
+postgresql_master
+postgresql_slaves
+
+7. Optional: Ansible configuration file
+
+vim ansible.cfg
+
+[defaults]
+inventory = inventory
+remote_user = devops
+host_key_checking = false
+deprecation_warnings = false
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+become_ask_pass = False
+
+8. Test Ansible connectivity
+
+ansible postgresql_cluster -m ping
