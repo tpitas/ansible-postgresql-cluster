@@ -1,0 +1,28 @@
+---
+# Check PostgreSQL and Python versions
+- name: Check PostgreSQL and Python Versions
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+
+    - name: Get PostgreSQL version
+      ansible.builtin.command: psql --version
+      register: psql_version
+      ignore_errors: true
+      changed_when: false
+
+    - name: Show PostgreSQL version
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} - PostgreSQL version: {{ psql_version.stdout | default('Not Installed') }}"
+
+    - name: Get Python version
+      ansible.builtin.command: python3 --version
+      register: python_version
+      ignore_errors: true
+      changed_when: false
+
+    - name: Show Python version
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} - Python version: {{ python_version.stdout | default('Not Installed') }}"
