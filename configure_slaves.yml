@@ -1,0 +1,41 @@
+---
+- name: Configure PostgreSQL Slaves for Streaming Replication
+  hosts: postgresql_slaves
+  become: true
+  gather_facts: false
+
+  vars:
+    data_dir: /var/lib/pgsql/data
+    master_host: "{{ hostvars['mhost1']['ansible_host'] }}"
+    replication_user: replicator
+    replication_pass: rep_pass
+
+  tasks:
+
+    - name: Stop PostgreSQL service
+      ansible.builtin.systemd:
+        name: postgresql
+        state: stopped
+        enabled: true
+
+    - name: Remove existing PostgreSQL data directory
+      ansible.builtin.file:
+        path: "{{ data_dir }}"
+        state: absent
+
+    - name: Run pg_basebackup to clone from master
+      become_user: postgres
+      ansible.builtin.shell: >
+        pg_basebackup
+        -h {{ master_host }}
+        -D {{ data_dir }}
+        -U {{ replication_user }}
+        -Fp -Xs -P -R
+      environment:
+        PGPASSWORD: "{{ replication_pass }}"
+
+    - name: Start PostgreSQL service
+      ansible.builtin.systemd:
+        name: postgresql
+        state: started
+        enabled: true
