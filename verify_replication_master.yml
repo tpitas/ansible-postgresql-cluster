@@ -1,0 +1,20 @@
+---
+- name: Verify PostgreSQL replication status on master
+  hosts: postgresql_master
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Check replication status on master
+      become_user: postgres
+      ansible.builtin.command: >
+        psql -t -c "SELECT client_addr, state, sync_state FROM pg_stat_replication;"
+      register: replication_status
+      changed_when: false
+      failed_when: false
+
+    - name: Show replication status
+      ansible.builtin.debug:
+        msg: |
+          Replication Status for {{ inventory_hostname }}:
+          {{ replication_status.stdout | default('No replication connections found.') }}
