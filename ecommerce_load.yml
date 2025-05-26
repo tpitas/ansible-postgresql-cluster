@@ -1,0 +1,64 @@
+---
+# installed if needed : ansible-galaxy collection install community.postgresql
+- name: Setup ecommerce database, table, and load csv data
+  hosts: mhost1
+  become: yes
+  become_user: postgres
+
+  vars:
+    db_name: ecommerce
+    csv_src: /home/devops/myansible2025/cogsley_sales.csv     # control node path
+    csv_dest: /tmp/cogsley_sales.csv                          # remote host path
+
+  tasks:
+    - name: Create ecommerce database if not exists
+      community.postgresql.postgresql_db:
+        name: "{{ db_name }}"
+        state: present
+      register: db_create
+
+    - name: Create cogsley_sales table in ecommerce database
+      community.postgresql.postgresql_query:
+        db: "{{ db_name }}"
+        query: |
+          create table if not exists cogsley_sales (
+            row_id integer primary key,
+            order_id integer,
+            order_date date,
+            order_month_year date,
+            quantity integer,
+            quote numeric,
+            discount_percent numeric,
+            rate numeric,
+            sale_amount numeric,
+            customer_name text,
+            company_name text,
+            sector text,
+            industry text,
+            city text,
+            zip_code text,
+            state text,
+            region text,
+            project_complete_date date,
+            days_to_complete integer,
+            product_id text,
+            product_category text,
+            product_subcategory text,
+            consultant text,
+            manager text,
+            hourly_wage numeric,
+            row_count integer,
+            wage_margin numeric
+          );
+    
+    - name: Copy cogsley_sales.csv file to remote host /tmp
+      ansible.builtin.copy:
+        src: "{{ csv_src }}"
+        dest: "{{ csv_dest }}"
+        mode: '0644'
+
+    - name: Load csv data into cogsley_sales table using psql \copy (client-side)
+      ansible.builtin.shell: |
+        psql -d {{ db_name }} -c "\copy cogsley_sales from '{{ csv_dest }}' with csv header"
+      args:
+        executable: /bin/bash
