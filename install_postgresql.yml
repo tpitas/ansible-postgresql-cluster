@@ -1,7 +1,10 @@
 ---
-- name: postgresql playbook
+- name: postgresql Playbook
   hosts: all
   become: true
+  vars_files:
+    - vault.yml  # encrypted file containing pg_password variable
+
   tasks:
     - name: Install packages
       ansible.builtin.dnf:
@@ -27,3 +30,17 @@
         name: postgresql
         state: started
         enabled: true
+
+    - name: Get postgres user home directory
+      ansible.builtin.command: "bash -c 'echo $HOME'"
+      become_user: postgres
+      register: postgres_home
+
+    - name: Create .pgpass file for postgres user securely
+      ansible.builtin.copy:
+        dest: "{{ postgres_home.stdout }}/.pgpass"  # path to .pgpass in postgres home
+        content: "*:*:*:postgres:{{ pg_password }}"  # format: hostname:port:db:user:password
+        owner: postgres
+        group: postgres
+        mode: '0600'  # file permission must be 0600 for security reason
+      no_log: true  # hide sensitive content from logs
