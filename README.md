@@ -1,5 +1,5 @@
 # ansible-postgresql-cluster
-Ansible automation for deploying a PostgreSQL cluster with streaming replication on Rocky Linux (a Red Hat-compatible distribution). Includes setup of control and managed nodes, passwordless SSH, user privilege configuration, and cluster orchestration.
+Ansible automation for deploying a PostgreSQL cluster with streaming replication on Rocky Linux (a Red Hat-compatible distribution). This project provides end-to-end orchestration of control and database nodes, including passwordless SSH setup, secure user and privilege configuration, streaming replication between master and replica nodes, automated failover checks, and robust backup and data loading capabilities.
 
 ## Features
 - Automated setup of:
