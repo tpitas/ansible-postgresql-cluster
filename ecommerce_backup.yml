@@ -1,0 +1,113 @@
+---
+# Playbook: ecommerce_backup.yml
+# Purpose: Backup, transfer, and restore of the 'ecommerce' PostgreSQL database.
+#
+# Summary of steps:
+# 1. Ensure /tmp/pg_backups directory exists on all target hosts.
+# 2. On mhost1 (primary):
+#    - Check if backup file exists.
+#    - If not, create a pg_dump backup of 'ecommerce':
+#         pg_dump -F c -f /tmp/pg_backups/ecommerce_from_master.dump ecommerce
+#    - Restore database on master.
+# 3. On mhost2, mhost3, mhost4 (standbys):
+#    - Copy backup from control node.
+#    - Detect if host is a replica (pg_is_in_recovery()).
+#    - If not a replica:
+#         - Ensure 'ecommerce' database exists.
+#         - Check for main table 'cogsley_sales'.
+#         - If missing, restore from backup.
+
+- name: Ensure backup directory exists on all nodes
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure /tmp/pg_backups directory is present
+      file:
+        path: /tmp/pg_backups
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+- name: Backup ecommerce database on master (mhost1)
+  hosts: mhost1
+  become: yes
+  become_user: postgres
+  vars:
+    backup_file: /tmp/pg_backups/ecommerce_from_master.dump
+  tasks:
+    - name: Check if backup file exists on master
+      stat:
+        path: "{{ backup_file }}"
+      register: backup_stat
+
+    - name: Dump 'ecommerce' database if backup is missing
+      # Uses pg_dump to create a backup in custom format (-F c)
+      # -F c = custom format; -f = output file path
+      command: pg_dump -F c -f "{{ backup_file }}" ecommerce
+      args:
+        creates: "{{ backup_file }}"
+      when: not backup_stat.stat.exists
+
+    - name: Fetch backup file from master to control node
+      fetch:
+        src: "{{ backup_file }}"
+        dest: "./pg_backups/ecommerce_from_master.dump"
+        flat: yes
+
+    - name: Ensure 'ecommerce' database exists on master
+      postgresql_db:
+        name: ecommerce
+        state: present
+
+    - name: Restore ecommerce database on master idempotently
+      # Uses pg_restore with --clean and --if-exists to avoid duplicate objects
+      command: pg_restore --clean --if-exists -d ecommerce "{{ backup_file }}"
+
+- name: Distribute backup and restore on standbys if needed
+  hosts: mhost2, mhost3, mhost4
+  become: yes
+  become_user: postgres
+  vars:
+    backup_file: /tmp/pg_backups/ecommerce_from_master.dump
+  tasks:
+    - name: Copy backup file from control node to standby
+      copy:
+        src: "./pg_backups/ecommerce_from_master.dump"
+        dest: "{{ backup_file }}"
+        owner: postgres
+        group: postgres
+        mode: '0600'
+
+    - name: Check if host is a read-only replica
+      # Determines if the server is in recovery mode (replica)
+      postgresql_query:
+        db: postgres
+        query: "SELECT pg_is_in_recovery() AS in_recovery;"
+      register: recovery_status
+
+    - name: Ensure 'ecommerce' database exists on standby (only if not replica)
+      postgresql_db:
+        name: ecommerce
+        state: present
+      when: not recovery_status.query_result[0].in_recovery
+
+    - name: Check if table 'cogsley_sales' exists (only if not replica)
+      postgresql_query:
+        db: ecommerce
+        query: "SELECT to_regclass('public.cogsley_sales') IS NOT NULL AS exists;"
+      register: table_check
+      when: not recovery_status.query_result[0].in_recovery
+
+    - name: Restore ecommerce database if table 'cogsley_sales' is missing
+      command: pg_restore --clean --if-exists -d ecommerce "{{ backup_file }}"
+      when:
+        - not recovery_status.query_result[0].in_recovery
+        - not table_check.query_result[0].exists
+
+    - name: Debug message for replicas or skipped restore
+      debug:
+        msg: >
+          Skipping database creation and restore on {{ inventory_hostname }}. 
+          Replica mode: {{ recovery_status.query_result[0].in_recovery }}, 
+          Table exists: {{ table_check.query_result[0].exists | default('N/A') }}
