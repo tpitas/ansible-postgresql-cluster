@@ -96,3 +96,18 @@
     - name: Debug load csv result
       debug:
         var: load_csv_result
+
+    - name: Ensure psql is available
+      ansible.builtin.command: which psql
+      register: psql_check
+      failed_when: psql_check.rc != 0
+
+    - name: Count rows in cogsley_sales after loading # log csv row count before/after loading 
+      community.postgresql.postgresql_query:
+        db: "{{ db_name }}"
+        query: "select count(*) from cogsley_sales;"
+      register: count_result
+
+    - name: Show row count
+      debug:
+        var: count_result
