@@ -10,6 +10,11 @@ Ansible automation for deploying a PostgreSQL cluster with streaming replication
   - Streaming replication setup
 - Inventory-driven node management
 - Built for **Rocky Linux** environments
+- Cluster Initialization: Deploys and configures both master and replica PostgreSQL nodes.
+- Streaming Replication: Implements asynchronous streaming replication, including monitoring to ensure data consistency.
+- Passwordless SSH: Automates SSH key exchange to enable seamless Ansible orchestration across all nodes.
+- Backup and Data Loading: Facilitates sample data imports and automates backups with error handling.
+- Health Checks: Performs comprehensive validation of cluster health and replication status.
 
 ## Cluster Architecture
                            +--------------------+
