@@ -28,9 +28,9 @@ sudo vim /etc/hosts
 2. Create devops user on managed nodes (mhost1–mhost4):
 
 sudo useradd -m devops
-echo devops:devops | sudo chpasswd
+echo devops:devops | sudo chpasswd # To be changed for security reason
 sudo usermod -aG wheel devops
-echo "devops ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/devops
+echo "devops ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/devops # Allow passwordless sudo for the user devops
 sudo chmod 0440 /etc/sudoers.d/devops
 
 3. Enable and Start SSH (all nodes)
